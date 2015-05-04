@@ -13,6 +13,7 @@ import android.widget.TextView;
 import java.io.IOException;
 import java.net.ServerSocket;
 
+import edu.buffalo.cse.cse486586.simpledynamo.Server.ListeningServerRunnable;
 import edu.buffalo.cse.cse486586.simpledynamo.Server.ServerTask;
 import edu.buffalo.cse.cse486586.simpledynamo.test.testButtons.PhaseOneClickListener;
 
@@ -39,6 +40,8 @@ public class SimpleDynamoActivity extends Activity {
     public static Activity activity;
     @Override
 	protected void onCreate(Bundle savedInstanceState) {
+        Log.i("CREATE","******************************************************************");
+
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_simple_dynamo);
         activity = this;
@@ -59,8 +62,13 @@ public class SimpleDynamoActivity extends Activity {
         findViewById(R.id.button1).setOnClickListener(new PhaseOneClickListener(this));
 
         try {
+
             ServerSocket serverSocket = new ServerSocket(SERVER_PORT);
-            new ServerTask(this).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, serverSocket);
+            Thread t = new Thread(new ListeningServerRunnable(this,serverSocket));
+            t.setPriority(Thread.MAX_PRIORITY);
+            t.start();
+
+            //new ServerTask(this).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, serverSocket);
         } catch (IOException e) {
             Log.e(TAG, "Can't create a ServerSocket");
             Log.e(TAG,e.getMessage());

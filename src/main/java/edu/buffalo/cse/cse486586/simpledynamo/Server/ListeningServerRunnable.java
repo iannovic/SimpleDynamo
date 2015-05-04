@@ -1,9 +1,6 @@
 package edu.buffalo.cse.cse486586.simpledynamo.Server;
 
 import android.app.Activity;
-import android.content.ContentValues;
-import android.database.Cursor;
-import android.os.AsyncTask;
 import android.util.Log;
 
 import java.io.IOException;
@@ -18,50 +15,51 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 
-import edu.buffalo.cse.cse486586.simpledynamo.SimpleDynamoActivity;
-import edu.buffalo.cse.cse486586.simpledynamo.SimpleDynamoProvider;
 import edu.buffalo.cse.cse486586.simpledynamo.data.Pojo;
 
 /**
- * Created by ianno_000 on 4/25/2015.
+ * Created by ianno_000 on 5/3/2015.
  */
-public class ServerTask extends AsyncTask<ServerSocket,String,Void>{
+public class ListeningServerRunnable implements Runnable {
+
     private Activity activity;
-
-    /*
-        use these variables to handle concurrency for the coordinator and provider on the same process
-     */
-    private Semaphore coordinatorLock;
-    private List<Pojo> coordinatorPojoList;
-
+    ServerSocket serverSocket;
 
     public static int W = 2;        //minimum number of writes that must occur
     public static int R = 2;        //minimum number of reads that must occur
     public static int N = 3;        //replication degree
-    private final int TIMEOUT_CONSTANT = 100;
+    public static final int TIMEOUT_CONSTANT = 1000;
+    public static final int SERVER_TIMEOUT_CONSTANT = 20000; // set this to see that the thread is moving
 
-    public ServerTask(Activity activity) {
+    public static int requestSequence;
+    public static Semaphore requestLock;
+    public static List<Pojo> requestList;
+
+    public ListeningServerRunnable(Activity activity, ServerSocket serverSocket) {
         this.activity = activity;
-        coordinatorLock = new Semaphore(1);
-        coordinatorPojoList = new LinkedList<Pojo>();
+        this.serverSocket = serverSocket;
+
+        requestList = new LinkedList<Pojo>();
+        requestLock = new Semaphore(1);
+        requestSequence = 0;
     }
 
     @Override
-    protected Void doInBackground(ServerSocket... params) {
-
-        ServerSocket serverSocket = params[0];
-
+    public void run() {
         while (true) {
             try {
-                Log.i("SERVER_TASK","!!!!!!!!!!!!!!BEGIN SERVER TASK!!!!!!!!!!!!!!!!!!!!!!");
+                Log.i("LISTENING_SERVER", "-=-~ BEGIN SERVER TASK ~-=-");
+                serverSocket.setSoTimeout(SERVER_TIMEOUT_CONSTANT);
+
                 Socket socket = serverSocket.accept();
-                socket.setSoTimeout(TIMEOUT_CONSTANT);
+                Log.i("LISTENING_SERVER", "ACCEPTED A NEW SOCKET CONNECTION");
                 /*
                     READ input from socket after accepting it
                  */
                 InputStream is = socket.getInputStream();
                 ObjectInputStream ois = new ObjectInputStream(is);
                 Pojo pojoReceived = (Pojo) ois.readObject();
+                socket.setSoTimeout(TIMEOUT_CONSTANT);
                 /*
                     ACK back to the sending process to handle failure
                  */
@@ -69,30 +67,19 @@ public class ServerTask extends AsyncTask<ServerSocket,String,Void>{
                 OutputStream os = socket.getOutputStream();
                 ObjectOutputStream oos = new ObjectOutputStream(os);
 
-                Pojo responsePojo = new Pojo();
-                responsePojo.setType(Pojo.TYPE_ACK);
-                responsePojo.setDestinationPort(pojoReceived.getDestinationPort());
-                responsePojo.setSendingPort(pojoReceived.getSendingPort());
-                responsePojo.setSendingVersion(pojoReceived.getSendingVersion());
-                responsePojo.setValues(pojoReceived.getValues());
-
-
-                if (socket.isClosed()) {
-                    Log.e("ServerTask","SOCKET IS CLOSED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                } else {
-                    Log.e("ServerTask","socket is not closed. yay.");
-                }
                 if (!pojoReceived.getDestinationPort().equals(pojoReceived.getSendingPort())) {
-                    oos.writeObject(responsePojo);
+                    oos.writeObject(pojoReceived);
                     oos.flush();
                     Log.i("ServerTask","ACK sent for pojo: " + pojoReceived.asString());
                 } else {
                     Log.i("ServerTask","no need to ACK to self port " + pojoReceived.asString());
 
                 }
-                new StateMachineTask(socket,activity,oos).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR,pojoReceived);
+                new Thread(new StateMachineRunnable(socket,activity,oos,pojoReceived,null)).start();
+
+                //new StateMachineTask(socket,activity,oos).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR,pojoReceived);
             } catch (SocketTimeoutException e) {
-                Log.e("ERROR","SOCKET TIMED OUT",e);
+                Log.i("LISTENING_SERVER","-=-~ SERVER TIMED OUT ~-=-");
             }catch (IOException e) {
                 Log.e("ERROR", e.getMessage(),e);
             }catch (ClassNotFoundException e) {

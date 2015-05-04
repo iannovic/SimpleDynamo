@@ -15,12 +15,23 @@ public class Pojo implements Serializable {
     public static final int TYPE_NODE_INSERT = 2;
     public static final int TYPE_COORDINATOR_QUERY = 3;
     public static final int TYPE_NODE_QUERY = 4;
+    public static final int TYPE_RESPONSE = 5;
+
     private int type;
     private int sendingVersion;
+    private int requestSequence;
     private String destinationPort;
     private String sendingPort;
     private String key;
     private String value;
+
+    public int getRequestSequence() {
+        return requestSequence;
+    }
+
+    public void setRequestSequence(int requestSequence) {
+        this.requestSequence = requestSequence;
+    }
 
     public void setValues(ContentValues values) {
         key = (String) values.get("key");
@@ -78,6 +89,6 @@ public class Pojo implements Serializable {
     }
 
     public String asString() {
-        return "{ " + type + ", " + sendingVersion + ", " + destinationPort + ", " + sendingPort + ", " + key + ", " + value + "}";
+        return "{ " + type + ", " + sendingVersion + ", " + requestSequence + ", " + destinationPort + ", " + sendingPort + ", " + key + ", " + value + "}";
     }
 }

@@ -31,15 +31,6 @@ public class PhaseOneTestTask extends AsyncTask<Activity,String,Void>{
         } else {
             Log.i("TEST","failed to insert");
         }
-/*
-        Log.i("TEST","inserting second value");
-        ContentValues values2 = new ContentValues();
-        values2.put("key","key2");
-        values2.put("value","value2");
-        params[0].getContentResolver().insert(SimpleDynamoProvider.PROVIDER_URI, values2);
-        Log.i("TEST","end of phase one test");
-*/
-
 
 
         return null;

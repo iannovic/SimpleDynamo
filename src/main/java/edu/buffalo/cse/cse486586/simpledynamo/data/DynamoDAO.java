@@ -46,6 +46,7 @@ public class DynamoDAO {
                 Log.e("CSE486","failed to insert");
             }
             cursor.close();
+            db.close();
         }
         else
         {

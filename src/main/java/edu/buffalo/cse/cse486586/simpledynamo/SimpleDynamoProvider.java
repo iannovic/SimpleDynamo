@@ -10,13 +10,12 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.MatrixCursor;
-import android.graphics.Matrix;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.util.Log;
 
+import edu.buffalo.cse.cse486586.simpledynamo.Server.ListeningServerRunnable;
 import edu.buffalo.cse.cse486586.simpledynamo.Server.ProviderHelper;
-import edu.buffalo.cse.cse486586.simpledynamo.Server.StateMachineTask;
+import edu.buffalo.cse.cse486586.simpledynamo.Server.StateMachineRunnable;
 import edu.buffalo.cse.cse486586.simpledynamo.data.DatabaseHelper;
 import edu.buffalo.cse.cse486586.simpledynamo.data.DynamoDAO;
 import edu.buffalo.cse.cse486586.simpledynamo.data.Pojo;
@@ -78,31 +77,13 @@ public class SimpleDynamoProvider extends ContentProvider {
                 pojo.setSendingPort(SimpleDynamoActivity.MY_EMULATOR_PORT);
                 pojo.setType(Pojo.TYPE_COORDINATOR_INSERT);
                 pojo.setDestinationPort(successorPort);
-                Pojo responsePojo = new Pojo();
-                responsePojo.setSendingVersion(0);
-                responsePojo.setType(100);
                 Log.i("QUERY","coordinator is " + successorPort);
 
                 /*
                     added this to handle the case that the requesting process is the coordinator, if this is the case then we have to make a new state machine task locally instead of through a connection
                  */
 
-                if (successorPort.equals(SimpleDynamoActivity.MY_EMULATOR_PORT)) {
-                    Log.i("INSERT","coordinator is self. creating new StateMachineTask");
-                    new StateMachineTask(null,SimpleDynamoActivity.activity,null).doInBackground(pojo,responsePojo);
-                    Log.i("INSERT","WE HAVE A RESULT FROM THE LOCAL COORDINATOR! " + responsePojo.asString());
-                } else {
-                    if (!ProviderHelper.getInstance().sendPojoToDestinationPort(pojo,responsePojo)) {
-                        Log.e("ERROR", "FAILED TO GET ACK");
-                        return null;
-                    } else if (responsePojo.getSendingVersion() != 0){
-                        Log.i("QUERY","REQUEST SUCCESSFUL ... received ACK from coordinator!");
-                    } else {
-                        Log.e("ERROR","Coordinator did not replicate properly. insert was a failure");
-                        return null;
-                    }
-                }
-
+                Pojo responsePojo = ProviderHelper.getInstance().startMachineTask(pojo);
             }
         } catch (NoSuchAlgorithmException e) {
             Log.e("ERROR", "while trying to insert new string", e);
@@ -146,22 +127,9 @@ public class SimpleDynamoProvider extends ContentProvider {
                     pojo.setType(Pojo.TYPE_COORDINATOR_QUERY);
                     pojo.setSendingVersion(0);
                     pojo.setValues(values);
-                    Pojo retPojo = new Pojo();
-                    retPojo.setType(100);
 
                     Log.i(SimpleDynamoActivity.TAG, "sending query request to the coordinator with object: " + pojo.asString());
-                    if (pojo.getDestinationPort().equals(pojo.getSendingPort())) {
-                        Log.i("QUERY_REQUEST","coordinator is self. creating StateMachineTask");
-                        new StateMachineTask(null,SimpleDynamoActivity.activity,null).doInBackground(pojo,retPojo);
-                        Log.i("QUERY_REQUEST","value has been returned! " + retPojo.asString());
-                    }
-                    else{
-                        if (!ProviderHelper.getInstance().sendPojoToDestinationPort(pojo,retPojo)) {
-                        Log.e("QUERY_REQUEST","failed");
-                         } else {
-                        Log.i("QUERY_REQUEST","SUCCESS! " + retPojo.asString());
-                        }
-                    }
+                    Pojo retPojo =  ProviderHelper.getInstance().startMachineTask(pojo);
                     Log.i("QUERY_REQUEST","creating cursor to return");
                     MatrixCursor mc =  new MatrixCursor(DatabaseHelper.TABLE_PROJECTION,10);
                     mc.addRow(new Object[]{retPojo.getValues().get("key"),retPojo.getValues().get("value")});
@@ -186,9 +154,7 @@ public class SimpleDynamoProvider extends ContentProvider {
             Log.e("ERROR", "while trying to insert new string", e);
         } catch (SQLException e) {
             Log.e("ERROR","SQL error",e);
-        } /*catch (InterruptedException e) {
-            Log.e("ERROR","",e);
-        }*/
+        }
 		return cursor;
 	}
 

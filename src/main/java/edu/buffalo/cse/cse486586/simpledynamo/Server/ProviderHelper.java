@@ -7,7 +7,9 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketAddress;
 import java.net.SocketTimeoutException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -99,7 +101,7 @@ public class ProviderHelper {
     }
 
     private Node determineNodeLinks(String port) {
-        Log.i("DETERMINE_LINKS", port + ":BEGINNING");
+        //Log.i("DETERMINE_LINKS", port + ":BEGINNING");
         Node retNode = new Node(port);
         String final_successor = "";
         String final_predecessor = "";
@@ -122,10 +124,10 @@ public class ProviderHelper {
 
                 //Log.i(TAG,tempNode + ":" + myNodeId + ":" + currentPredecessor + ":" + currentSuccessor);
                 int distance = tempNode.compareTo(myNodeId);
-                Log.i("DETERMINE_LINKS", tempPort + ":" + distance);
+               // Log.i("DETERMINE_LINKS", tempPort + ":" + distance);
                 if (nearestAhead > 0 && distance > 0 && distance < nearestAhead) {
                     nearestAhead = distance;
-                    Log.i("DETERMINE_LINKS", tempPort + ":" + distance + ": SET SUCCESSOR");
+                  //  Log.i("DETERMINE_LINKS", tempPort + ":" + distance + ": SET SUCCESSOR");
                     final_successor = tempPort;
 
                 } else if (nearestAhead == 0 && distance > 0) {
@@ -141,7 +143,7 @@ public class ProviderHelper {
                 if (nearestBehind < 0 && distance < 0 && distance > nearestBehind) {
                     nearestBehind = distance;
                     final_predecessor = tempPort;
-                    Log.i("DETERMINE_LINK", tempPort + ":" + distance + ": SET PREDECESSOR");
+                  //  Log.i("DETERMINE_LINK", tempPort + ":" + distance + ": SET PREDECESSOR");
                 } else if (nearestBehind == 0 && distance < 0) {
                     nearestBehind = distance;
                     final_predecessor = tempPort;
@@ -154,11 +156,11 @@ public class ProviderHelper {
             }
             if (final_successor.equals("")) {
                 final_successor = list.get(furthestBehindIndex).port;
-                Log.i("DETERMINE_LINK", final_successor + ":SUCCESSOR");
+              //  Log.i("DETERMINE_LINK", final_successor + ":SUCCESSOR");
             }
             if (final_predecessor.equals("")) {
                 final_predecessor = list.get(furthestAheadIndex).port;
-                Log.i("DETERMINE_LINK", final_predecessor + ":PREDECESSOR");
+               // Log.i("DETERMINE_LINK", final_predecessor + ":PREDECESSOR");
             }
 
             /*
@@ -264,15 +266,21 @@ public class ProviderHelper {
         return vectorClock.get(port);
     }
 
-    public Boolean sendPojoToDestinationPort(Pojo... params) {
-        Pojo pojo = params[0];
+    public Boolean sendPojoToDestinationPort(Pojo pojo) {
         Socket socket;
         try {
             int remotePort;
             remotePort = 2 * Integer.parseInt(pojo.getDestinationPort());
             byte[] self = {10,0,2,2};
-            socket = new Socket(InetAddress.getByAddress(self),remotePort);
-            socket.setSoTimeout(100);
+
+            socket = new Socket();
+            InetSocketAddress sockaddr = new InetSocketAddress(InetAddress.getByAddress(self),remotePort);
+
+            Log.i("SENDING","attempting to connect to remote port " + sockaddr.toString());
+            socket.connect(sockaddr,ListeningServerRunnable.TIMEOUT_CONSTANT);
+            Log.i("SENDING","successfully connected to remote port " + sockaddr.toString());
+            //socket = new Socket(InetAddress.getByAddress(self),remotePort);
+            socket.setSoTimeout(ListeningServerRunnable.TIMEOUT_CONSTANT);
 
             OutputStream stream = socket.getOutputStream();
             ObjectOutputStream oos = new ObjectOutputStream(stream);
@@ -281,39 +289,68 @@ public class ProviderHelper {
             Log.i(SimpleDynamoActivity.TAG, "pojo sent: " + pojo.asString());
             Log.i(SimpleDynamoActivity.TAG, "sent pojo to destination " + pojo.getDestinationPort());
 
-
-
             if (!pojo.getDestinationPort().equals(pojo.getSendingPort())) {
-
                 InputStream is = socket.getInputStream();
                 ObjectInputStream ois = new ObjectInputStream(is);
-
                 Pojo pojoAck = (Pojo) ois.readObject();
-                Log.i(SimpleDynamoActivity.TAG, "first ACK read: " + pojoAck.asString());
-                if (pojoAck.getType() == Pojo.TYPE_ACK) {
-                    if (pojo.getType() == Pojo.TYPE_NODE_QUERY || pojo.getType() == Pojo.TYPE_COORDINATOR_QUERY || pojo.getType() == Pojo.TYPE_COORDINATOR_INSERT) {
-                        Log.i(SimpleDynamoActivity.TAG,"waiting for second response from a query or insert...");
-
-                        Pojo responsePojo =  (Pojo) ois.readObject();
-                        params[1].setValues(responsePojo.getValues());
-                        params[1].setSendingVersion(responsePojo.getSendingVersion());
-                        params[1].setSendingPort(responsePojo.getSendingPort());
-                        params[1].setDestinationPort(responsePojo.getDestinationPort());
-                        return true;
-                    }
-                } else {
-                    Log.e(SimpleDynamoActivity.TAG, "failed to send message to destination");
-                    return false;
-                }
+                Log.i(SimpleDynamoActivity.TAG, "ACK read: " + pojoAck.asString());
             }
         } catch (SocketTimeoutException e) {
             Log.e("SOCKET TIMEOUT","failed to get ACK " + pojo.asString(),e);
+            return false;
         } catch (Exception e) {
             Log.e(SimpleDynamoActivity.TAG,"exception" + e.getMessage(),e);
             return false;
         }
         return true;
     }
+    public Pojo startMachineTask(Pojo pojo) {
+        /*
+            Increment sequence counter.
+         */
+        try {
+            ListeningServerRunnable.requestLock.acquire();
+            pojo.setRequestSequence(ListeningServerRunnable.requestSequence);
+            Log.i("SPINNING AND WAITING", "beginning request for " + pojo.asString());
+            ListeningServerRunnable.requestList.add(pojo);
+            ListeningServerRunnable.requestSequence++;
+            ListeningServerRunnable.requestLock.release();
 
+            if (pojo.getDestinationPort().equals(pojo.getSendingPort())) {
+                new StateMachineRunnable(null,SimpleDynamoActivity.activity,null,pojo,null).run();
+            } else {
+                if (ProviderHelper.getInstance().sendPojoToDestinationPort(pojo)) {
+                    Log.i("RESPONSE_SUCCESS","successfully sent message and received ack: " + pojo.asString());
+                } else {
+                    Log.e("RESPONSE_ERROR","failed to get response " + pojo.asString());
+                }
+            }
+            spinUntilResponse(pojo.getRequestSequence());
 
+        } catch (InterruptedException e) {
+            Log.e("EXCEPTION,",e.getMessage(),e);
+        }
+        return ListeningServerRunnable.requestList.get(pojo.getRequestSequence());
+    }
+
+    public void spinUntilResponse(int sequenceNumber) {
+        boolean forever = true;
+        try {
+            while (forever) {
+
+                ListeningServerRunnable.requestLock.acquire();
+                ListeningServerRunnable.requestList.get(sequenceNumber);
+                if (ListeningServerRunnable.requestList.get(sequenceNumber).getType() == Pojo.TYPE_RESPONSE) {
+                    Log.i("RESPONSE","received response");
+                    forever = false;
+                }
+                ListeningServerRunnable.requestLock.release();
+                //Log.i("SPINNING AND WAITING ",ListeningServerRunnable.requestList.get(sequenceNumber).asString());
+                Thread.currentThread().yield();
+            }
+            Log.i("SPINNING_AND_WAITING","no longer spinning, response received for sequence " + sequenceNumber);
+    } catch (InterruptedException e) {
+        Log.e("EXCEPTION,",e.getMessage(),e);
+    }
+    }
 }
