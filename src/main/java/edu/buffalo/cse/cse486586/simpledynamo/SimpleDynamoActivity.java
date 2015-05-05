@@ -14,7 +14,8 @@ import java.io.IOException;
 import java.net.ServerSocket;
 
 import edu.buffalo.cse.cse486586.simpledynamo.Server.ListeningServerRunnable;
-import edu.buffalo.cse.cse486586.simpledynamo.Server.ServerTask;
+import edu.buffalo.cse.cse486586.simpledynamo.test.testButtons.ConnectTestTwoClickListener;
+import edu.buffalo.cse.cse486586.simpledynamo.test.testButtons.ConnectionTestClickListener;
 import edu.buffalo.cse.cse486586.simpledynamo.test.testButtons.PhaseOneClickListener;
 
 public class SimpleDynamoActivity extends Activity {
@@ -60,9 +61,10 @@ public class SimpleDynamoActivity extends Activity {
         Log.i(this.TAG,"emulator port is :" + MY_EMULATOR_PORT + " remote port is : " + MY_REMOTE_PORT);
 
         findViewById(R.id.button1).setOnClickListener(new PhaseOneClickListener(this));
+        findViewById(R.id.button).setOnClickListener(new ConnectionTestClickListener());
+        findViewById(R.id.button2).setOnClickListener(new ConnectTestTwoClickListener());
 
         try {
-
             ServerSocket serverSocket = new ServerSocket(SERVER_PORT);
             Thread t = new Thread(new ListeningServerRunnable(this,serverSocket));
             t.setPriority(Thread.MAX_PRIORITY);

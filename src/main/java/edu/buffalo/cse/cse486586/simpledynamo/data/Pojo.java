@@ -16,6 +16,7 @@ public class Pojo implements Serializable {
     public static final int TYPE_COORDINATOR_QUERY = 3;
     public static final int TYPE_NODE_QUERY = 4;
     public static final int TYPE_RESPONSE = 5;
+    public static final int TYPE_CONNECTION_TEST = 6;
 
     private int type;
     private int sendingVersion;

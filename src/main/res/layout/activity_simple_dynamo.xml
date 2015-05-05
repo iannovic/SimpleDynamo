@@ -28,4 +28,21 @@
         android:id="@+id/button1"
         android:layout_alignParentTop="true"
         android:layout_alignParentStart="true" />
+
+    <Button
+        style="?android:attr/buttonStyleSmall"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ConnectionTest"
+        android:id="@+id/button"
+        android:layout_alignTop="@+id/textView1"
+        android:layout_alignEnd="@+id/textView1" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ConnectionTestTwo"
+        android:id="@+id/button2"
+        android:layout_below="@+id/button1"
+        android:layout_alignParentStart="true" />
 </RelativeLayout>

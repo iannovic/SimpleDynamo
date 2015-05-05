@@ -72,8 +72,16 @@ public class ProviderHelper {
         initializeLinks();
         initializePreferenceList();
         initializeVectorClock();
+        printPreferenceList();
     }
 
+    public void printPreferenceList() {
+        Log.i("PREF LIST PRINTING","===========================================" + SimpleDynamoActivity.MY_EMULATOR_PORT);
+        for (int i = 0; i < preferenceList.size(); i ++) {
+            Log.i("PREF LIST PRINT",preferenceList.get(i));
+        }
+        Log.i("PREF LIST PRINTING","===========================================" + SimpleDynamoActivity.MY_EMULATOR_PORT);
+    }
     private void initializeVectorClock() {
         vectorClock = new HashMap<String,Integer>();
         for (int i = 0; i < SimpleDynamoActivity.MAX_NUMBER_OF_PROCESSES; i ++) {
@@ -267,7 +275,7 @@ public class ProviderHelper {
     }
 
     public Boolean sendPojoToDestinationPort(Pojo pojo) {
-        Socket socket;
+        Socket socket = null;
         try {
             int remotePort;
             remotePort = 2 * Integer.parseInt(pojo.getDestinationPort());
@@ -294,7 +302,14 @@ public class ProviderHelper {
                 ObjectInputStream ois = new ObjectInputStream(is);
                 Pojo pojoAck = (Pojo) ois.readObject();
                 Log.i(SimpleDynamoActivity.TAG, "ACK read: " + pojoAck.asString());
+                is.close();
+                ois.close();
             }
+
+            stream.close();
+            oos.close();
+            socket.close();
+
         } catch (SocketTimeoutException e) {
             Log.e("SOCKET TIMEOUT","failed to get ACK " + pojo.asString(),e);
             return false;
@@ -317,7 +332,7 @@ public class ProviderHelper {
             ListeningServerRunnable.requestLock.release();
 
             if (pojo.getDestinationPort().equals(pojo.getSendingPort())) {
-                new StateMachineRunnable(null,SimpleDynamoActivity.activity,null,pojo,null).run();
+                new StateMachineRunnable(null,SimpleDynamoActivity.activity,pojo,null).run();
             } else {
                 if (ProviderHelper.getInstance().sendPojoToDestinationPort(pojo)) {
                     Log.i("RESPONSE_SUCCESS","successfully sent message and received ack: " + pojo.asString());
@@ -328,7 +343,7 @@ public class ProviderHelper {
             spinUntilResponse(pojo.getRequestSequence());
 
         } catch (InterruptedException e) {
-            Log.e("EXCEPTION,",e.getMessage(),e);
+           Log.e("EXCEPTION,",e.getMessage(),e);
         }
         return ListeningServerRunnable.requestList.get(pojo.getRequestSequence());
     }

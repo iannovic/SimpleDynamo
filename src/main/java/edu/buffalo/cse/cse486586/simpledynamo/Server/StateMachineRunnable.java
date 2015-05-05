@@ -6,7 +6,10 @@ import android.database.Cursor;
 import android.util.Log;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.util.LinkedList;
 import java.util.List;
@@ -20,22 +23,20 @@ import edu.buffalo.cse.cse486586.simpledynamo.data.Pojo;
  */
 public class StateMachineRunnable implements Runnable {
 
-    Socket requestingSocket;
+    Socket socket;
     Pojo requestPojo;
     Pojo responsePojo;
     Activity activity;
-    ObjectOutputStream oos;
     boolean isSelf;
 
 
-    public StateMachineRunnable(Socket socket, Activity activity, ObjectOutputStream oos, Pojo pojo, Pojo retPojo) {
-        this.oos = oos;
-        requestingSocket = socket;
+    public StateMachineRunnable(Socket socket, Activity activity, Pojo pojo, Pojo retPojo) {
+        this.socket = socket;
         this.activity = activity;
         this.requestPojo = pojo;
         this.responsePojo = retPojo;
 
-        if (requestingSocket != null) {
+        if (this.socket != null) {
             isSelf = false;
         } else isSelf = true;
     }
@@ -43,7 +44,37 @@ public class StateMachineRunnable implements Runnable {
     @Override
     public void run() {
         try {
+            if (!isSelf) {
+                InputStream is = socket.getInputStream();
+                ObjectInputStream ois = new ObjectInputStream(is);
+                requestPojo = (Pojo) ois.readObject();
+                socket.setSoTimeout(ListeningServerRunnable.TIMEOUT_CONSTANT);
+
+            /*
+                ACK back to the sending process to handle failure
+             */
+                Log.i("ServerTask", "POJO received! " + requestPojo.asString());
+                if (!requestPojo.getDestinationPort().equals(requestPojo.getSendingPort())) {
+                    OutputStream os = socket.getOutputStream();
+                    ObjectOutputStream oos = new ObjectOutputStream(os);
+                    oos.writeObject(requestPojo);
+                    oos.flush();
+                    os.close();
+                    oos.close();
+                    Log.i("ServerTask", "ACK sent for pojo: " + requestPojo.asString());
+                } else {
+                    Log.i("ServerTask", "no need to ACK to self port " + requestPojo.asString());
+
+                }
+
+                is.close();
+                ois.close();
+                socket.close();
+            }
             switch (requestPojo.getType()) {
+                case Pojo.TYPE_CONNECTION_TEST:
+                    Log.i("TYPE_CONNECTION_TEST","do nothing");
+                    break;
                 case Pojo.TYPE_COORDINATOR_INSERT:
                     activity.getContentResolver().insert(SimpleDynamoProvider.PROVIDER_URI, requestPojo.getValues());
                     Log.i("STATE_MACHINE_INSERT", "coordinating insert.");
@@ -261,6 +292,10 @@ public class StateMachineRunnable implements Runnable {
             }
 
         } catch (InterruptedException e) {
+            Log.e("EXCEPTION",e.getMessage(),e);
+        } catch (IOException e) {
+            Log.e("EXCEPTION",e.getMessage(),e);
+        } catch (ClassNotFoundException e) {
             Log.e("EXCEPTION",e.getMessage(),e);
         }
     }
