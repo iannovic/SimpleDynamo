@@ -71,18 +71,12 @@ public class SimpleDynamoProvider extends ContentProvider {
                 String successorPort;
                 keyId = genHash(key);
                 successorPort = ProviderHelper.getInstance().findSuccessor(keyId);
-
                 Pojo pojo = new Pojo();
                 pojo.setValues(values);
                 pojo.setSendingPort(SimpleDynamoActivity.MY_EMULATOR_PORT);
                 pojo.setType(Pojo.TYPE_COORDINATOR_INSERT);
                 pojo.setDestinationPort(successorPort);
                 Log.i("QUERY","coordinator is " + successorPort);
-
-                /*
-                    added this to handle the case that the requesting process is the coordinator, if this is the case then we have to make a new state machine task locally instead of through a connection
-                 */
-
                 Pojo responsePojo = ProviderHelper.getInstance().startMachineTask(pojo);
             }
         } catch (NoSuchAlgorithmException e) {

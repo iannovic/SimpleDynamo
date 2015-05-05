@@ -51,7 +51,7 @@ public class ListeningServerRunnable implements Runnable {
             try {
                 Socket socket = serverSocket.accept();
                 Log.i("LISTENING_SERVER", "ACCEPTED A NEW SOCKET CONNECTION");
-                new Thread(new StateMachineRunnable(socket, activity, null, null)).start();
+                new Thread(new StateMachineRunnable(socket, activity)).start();
 
             } catch (SocketTimeoutException e) {
                 Log.i("LISTENING_SERVER","-=-~ SERVER TIMED OUT ~-=-");

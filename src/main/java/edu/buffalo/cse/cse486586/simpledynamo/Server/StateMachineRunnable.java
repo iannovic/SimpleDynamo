@@ -30,47 +30,33 @@ public class StateMachineRunnable implements Runnable {
     boolean isSelf;
 
 
-    public StateMachineRunnable(Socket socket, Activity activity, Pojo pojo, Pojo retPojo) {
+    public StateMachineRunnable(Socket socket, Activity activity) {
         this.socket = socket;
         this.activity = activity;
-        this.requestPojo = pojo;
-        this.responsePojo = retPojo;
-
-        if (this.socket != null) {
-            isSelf = false;
-        } else isSelf = true;
     }
 
     @Override
     public void run() {
         try {
-            if (!isSelf) {
                 InputStream is = socket.getInputStream();
                 ObjectInputStream ois = new ObjectInputStream(is);
                 requestPojo = (Pojo) ois.readObject();
                 socket.setSoTimeout(ListeningServerRunnable.TIMEOUT_CONSTANT);
-
-            /*
-                ACK back to the sending process to handle failure
-             */
+                /*
+                    ACK back to the sending process to handle failure
+                 */
                 Log.i("ServerTask", "POJO received! " + requestPojo.asString());
-                if (!requestPojo.getDestinationPort().equals(requestPojo.getSendingPort())) {
-                    OutputStream os = socket.getOutputStream();
-                    ObjectOutputStream oos = new ObjectOutputStream(os);
-                    oos.writeObject(requestPojo);
-                    oos.flush();
-                    os.close();
-                    oos.close();
-                    Log.i("ServerTask", "ACK sent for pojo: " + requestPojo.asString());
-                } else {
-                    Log.i("ServerTask", "no need to ACK to self port " + requestPojo.asString());
-
-                }
-
+                OutputStream os = socket.getOutputStream();
+                ObjectOutputStream oos = new ObjectOutputStream(os);
+                oos.writeObject(requestPojo);
+                Log.i("ServerTask", "ACK sent for pojo: " + requestPojo.asString());
+                oos.flush();
+                os.close();
+                oos.close();
                 is.close();
                 ois.close();
                 socket.close();
-            }
+
             switch (requestPojo.getType()) {
                 case Pojo.TYPE_CONNECTION_TEST:
                     Log.i("TYPE_CONNECTION_TEST","do nothing");

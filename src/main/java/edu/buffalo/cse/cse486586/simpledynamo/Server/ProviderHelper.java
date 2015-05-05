@@ -297,14 +297,12 @@ public class ProviderHelper {
             Log.i(SimpleDynamoActivity.TAG, "pojo sent: " + pojo.asString());
             Log.i(SimpleDynamoActivity.TAG, "sent pojo to destination " + pojo.getDestinationPort());
 
-            if (!pojo.getDestinationPort().equals(pojo.getSendingPort())) {
-                InputStream is = socket.getInputStream();
-                ObjectInputStream ois = new ObjectInputStream(is);
-                Pojo pojoAck = (Pojo) ois.readObject();
-                Log.i(SimpleDynamoActivity.TAG, "ACK read: " + pojoAck.asString());
-                is.close();
-                ois.close();
-            }
+            InputStream is = socket.getInputStream();
+            ObjectInputStream ois = new ObjectInputStream(is);
+            Pojo pojoAck = (Pojo) ois.readObject();
+            Log.i(SimpleDynamoActivity.TAG, "ACK read: " + pojoAck.asString());
+            is.close();
+            ois.close();
 
             stream.close();
             oos.close();
@@ -331,14 +329,10 @@ public class ProviderHelper {
             ListeningServerRunnable.requestSequence++;
             ListeningServerRunnable.requestLock.release();
 
-            if (pojo.getDestinationPort().equals(pojo.getSendingPort())) {
-                new StateMachineRunnable(null,SimpleDynamoActivity.activity,pojo,null).run();
+            if (ProviderHelper.getInstance().sendPojoToDestinationPort(pojo)) {
+                Log.i("RESPONSE_SUCCESS","successfully sent message and received ack: " + pojo.asString());
             } else {
-                if (ProviderHelper.getInstance().sendPojoToDestinationPort(pojo)) {
-                    Log.i("RESPONSE_SUCCESS","successfully sent message and received ack: " + pojo.asString());
-                } else {
-                    Log.e("RESPONSE_ERROR","failed to get response " + pojo.asString());
-                }
+                Log.e("RESPONSE_ERROR","failed to get response " + pojo.asString());
             }
             spinUntilResponse(pojo.getRequestSequence());
 
